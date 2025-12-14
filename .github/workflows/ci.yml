@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Build binary
+        run: |
+          set -euo pipefail
+          BIN="st-agent-${{ matrix.arch }}"
+          GOOS=linux GOARCH=${{ matrix.arch }} go build -o "${BIN}" ./cmd/st-agent
+          chmod +x "${BIN}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: st-agent-${{ matrix.arch }}
+          path: st-agent-${{ matrix.arch }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: st-agent-*
+          merge-multiple: true
+
+      - name: Release new version
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            st-agent-amd64
+            st-agent-arm64
+          token: ${{ secrets.GITHUB_TOKEN }}
