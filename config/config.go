@@ -26,7 +26,7 @@ type Config struct {
 	// RelaySyncInterval int            `json:"relay_sync_interval,omitempty"`
 
 	XRayConfig          *xConf.Config          `json:"xray_config,omitempty"`
-	Hysteria2Config     *hysteria.ServerConfig `json:"hysteria2_config,omitempty"`
+	HysteriaConfig      *hysteria.ServerConfig `json:"hysteria_config,omitempty"`
 	SyncTrafficEndPoint string                 `json:"sync_traffic_endpoint,omitempty"`
 
 	lastLoadTime time.Time
@@ -107,9 +107,5 @@ func (c *Config) NeedStartXrayServer() bool {
 }
 
 func (c *Config) NeedStartHysteriaServer() bool {
-	return c.Hysteria2Config != nil
+	return c.HysteriaConfig != nil
 }
-
-// func (c *Config) NeedStartRelayServer() bool {
-// 	return len(c.RelayConfigs) > 0
-// }
