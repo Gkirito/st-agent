@@ -297,8 +297,7 @@ func (up *UserPool) syncUserConfigsFromServer(ctx context.Context, proxyTag stri
 }
 
 func (up *UserPool) Start(ctx context.Context) error {
-	conn, err := grpc.DialContext(
-		context.Background(), up.grpcEndPoint, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	conn, err := grpc.NewClient(up.grpcEndPoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}

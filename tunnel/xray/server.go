@@ -10,7 +10,6 @@ import (
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/infra/conf"
 	_ "github.com/xtls/xray-core/main/distro/all" // register all features
-	"github.com/xtls/xray-core/proxy/trojan"
 	"go.uber.org/zap"
 )
 
@@ -41,8 +40,7 @@ type XrayServer struct {
 	l   *zap.Logger
 	cfg *config.Config
 
-	up *UserPool
-	// fallBack *http.Server
+	up       *UserPool
 	instance *core.Instance
 
 	mainCtx context.Context
@@ -56,23 +54,6 @@ func (xs *XrayServer) Setup() error {
 	coreCfg, err := buildXrayInstanceCfg(xs.cfg.XRayConfig)
 	if err != nil {
 		return err
-	}
-	for _, inbound := range coreCfg.Inbound {
-		if inbound.Tag == XrayTrojanProxyTag {
-			ins, err := inbound.ProxySettings.GetInstance()
-			if err != nil {
-				return err
-			}
-			// add fake fallback http server
-			s := ins.(*trojan.ServerConfig)
-			if len(s.Fallbacks) > 0 {
-				dest := s.Fallbacks[0].Dest
-				zap.L().Info("start fallback server for trojan at", zap.String("dest", dest))
-				// mux := http.NewServeMux()
-				// mux.HandleFunc("/", web.MakeIndexF())
-				// xs.fallBack = &http.Server{Addr: dest, Handler: mux}
-			}
-		}
 	}
 	instance, err := core.New(coreCfg)
 	if err != nil {
@@ -110,11 +91,7 @@ func (xs *XrayServer) Stop() {
 			xs.l.Error("stop instance meet error", zap.Error(err))
 		}
 	}
-	// if xs.fallBack != nil {
-	// 	if err := xs.fallBack.Close(); err != nil {
-	// 		xs.l.Error("stop fallback server meet error", zap.Error(err))
-	// 	}
-	// }
+
 	if xs.up != nil {
 		xs.up.Stop()
 	}
@@ -125,13 +102,6 @@ func (xs *XrayServer) Start(ctx context.Context) error {
 	if err := xs.instance.Start(); err != nil {
 		return err
 	}
-	// if xs.fallBack != nil {
-	// 	go func() {
-	// 		if err := xs.fallBack.ListenAndServe(); err != nil {
-	// 			xs.l.Error("fallback server meet error", zap.Error(err))
-	// 		}
-	// 	}()
-	// }
 
 	if xs.up != nil {
 		if err := xs.up.Start(ctx); err != nil {
@@ -139,37 +109,6 @@ func (xs *XrayServer) Start(ctx context.Context) error {
 		}
 	}
 
-	// if xs.cfg.ReloadInterval > 0 {
-	// 	go func() {
-	// 		ticker := time.NewTicker(time.Second * time.Duration(xs.cfg.ReloadInterval))
-	// 		defer ticker.Stop()
-	// 		for {
-	// 			select {
-	// 			case <-ctx.Done():
-	// 				return
-	// 			case <-ticker.C:
-	// 				newCfg := config.NewConfig(xs.cfg.PATH)
-	// 				if err := newCfg.LoadConfig(false); err != nil {
-	// 					// TODO refine
-	// 					xs.l.Error("Reload Config meet error will retry in next loop", zap.Error(err))
-	// 					continue
-	// 				}
-	// 				if needReload, err := xs.needReload(newCfg); err != nil {
-	// 					xs.l.Error("check need reload meet error", zap.Error(err))
-	// 				} else {
-	// 					if needReload {
-	// 						xs.cfg = newCfg
-	// 						if err := xs.Reload(); err != nil {
-	// 							xs.l.Error("Reload Xray Server meet error", zap.Error(err))
-	// 						}
-	// 						xs.l.Warn("Reload Xray Server success exit watcher ...")
-	// 						return
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 	}()
-	// }
 	if xs.mainCtx == nil {
 		xs.mainCtx = ctx
 	}
