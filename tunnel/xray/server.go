@@ -63,18 +63,12 @@ func (xs *XrayServer) Setup() error {
 
 	if xs.cfg.SyncTrafficEndPoint != "" {
 		// find api port and server, hard code api Tag to `api`
-		var grpcEndPoint string
+		grpcEndPoint := xs.cfg.XRayConfig.API.Listen
 		var proxyTags []string
 		for _, inbound := range xs.cfg.XRayConfig.InboundConfigs {
-			if inbound.Tag == XrayAPITag {
-				grpcEndPoint = fmt.Sprintf("%s:%d", inbound.ListenOn.String(), inbound.PortList.Range[0].From)
-			}
 			if InProxyTags(inbound.Tag) {
 				proxyTags = append(proxyTags, inbound.Tag)
 			}
-		}
-		if grpcEndPoint == "" {
-			return errors.New("can't find api port in config")
 		}
 		if len(proxyTags) == 0 {
 			return errors.New("can't find proxy tag in config")
