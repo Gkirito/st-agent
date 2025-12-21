@@ -142,10 +142,10 @@ func (up *UserPool) GetUser(id int) (*User, bool) {
 func (up *UserPool) RemoveUser(id int) {
 	up.Lock()
 	defer up.Unlock()
-	user, ok := up.GetUser(id)
+	user, ok := up.users[id]	
 	if !ok {
 		return
-	}
+	}	
 	delete(up.users, id)
 	delete(up.userpass, user.Password)
 }
