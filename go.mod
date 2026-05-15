@@ -1,21 +1,26 @@
 module github.com/gkirito/st-agent
 
-go 1.25.4
+go 1.26.0
 
 require (
+	anytls v0.0.0-00010101000000-000000000000
 	github.com/apernet/hysteria/core/v2 v2.6.5
 	github.com/apernet/hysteria/extras/v2 v2.6.5
 	github.com/google/uuid v1.6.0
 	github.com/mdp/qrterminal/v3 v3.1.1
+	github.com/sagernet/sing v0.5.1
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/xtls/xray-core v1.251015.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.76.0
 )
 
+replace anytls => github.com/anytls/anytls-go v0.0.0-20260112092128-2012ef897684
+
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/apernet/quic-go v0.54.1-0.20251024023933-5e0818a71079 // indirect
+	github.com/chen3feng/stl4go v0.1.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/database64128/netx-go v0.0.0-20240905055117-62795b8b054a // indirect
@@ -40,9 +45,9 @@ require (
 	github.com/riobard/go-bloom v0.0.0-20200614022211-cdc8013cb5b3 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/sagernet/sing v0.5.1 // indirect
 	github.com/sagernet/sing-shadowsocks v0.2.7 // indirect
 	github.com/seiflotfy/cuckoofilter v0.0.0-20240715131351-a2f2c23f1771 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/txthinking/runnergroup v0.0.0-20210608031112-152c7c4432bf // indirect
