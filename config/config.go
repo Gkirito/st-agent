@@ -9,6 +9,7 @@ import (
 	"time"
 
 	httputil "github.com/gkirito/st-agent/tool/http_util"
+	"github.com/gkirito/st-agent/tunnel/anytls"
 	"github.com/gkirito/st-agent/tunnel/hysteria"
 
 	xConf "github.com/xtls/xray-core/infra/conf"
@@ -27,6 +28,7 @@ type Config struct {
 
 	XRayConfig          *xConf.Config          `json:"xray_config,omitempty"`
 	HysteriaConfig      *hysteria.ServerConfig `json:"hysteria_config,omitempty"`
+	AnytlsConfig        *anytls.ServerConfig   `json:"anytls_config,omitempty"`
 	SyncTrafficEndPoint string                 `json:"sync_traffic_endpoint,omitempty"`
 
 	lastLoadTime time.Time
@@ -108,4 +110,8 @@ func (c *Config) NeedStartXrayServer() bool {
 
 func (c *Config) NeedStartHysteriaServer() bool {
 	return c.HysteriaConfig != nil
+}
+
+func (c *Config) NeedStartAnytlsServer() bool {
+	return c.AnytlsConfig != nil
 }
