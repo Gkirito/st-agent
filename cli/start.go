@@ -6,43 +6,64 @@ import (
 
 	"github.com/gkirito/st-agent/config"
 	"github.com/gkirito/st-agent/tunnel/anytls"
+	"github.com/gkirito/st-agent/tunnel/common"
 	"github.com/gkirito/st-agent/tunnel/hysteria"
 	"github.com/gkirito/st-agent/tunnel/xray"
 	"go.uber.org/zap"
 )
 
+type tunnelDef struct {
+	name        string
+	shouldStart func(*config.Config) bool
+	newServer   func(*config.Config) common.TunnelServer
+	needReload  func(common.TunnelServer, *config.Config) (bool, error)
+}
+
+var tunnels = []tunnelDef{
+	{
+		name:        "xray",
+		shouldStart: func(c *config.Config) bool { return c.NeedStartXrayServer() },
+		newServer:   func(c *config.Config) common.TunnelServer { return xray.NewXrayServer(c) },
+		needReload: func(s common.TunnelServer, c *config.Config) (bool, error) {
+			return s.(*xray.XrayServer).NeedReload(c)
+		},
+	},
+	{
+		name:        "hysteria",
+		shouldStart: func(c *config.Config) bool { return c.NeedStartHysteriaServer() },
+		newServer: func(c *config.Config) common.TunnelServer {
+			return hysteria.NewHysteriaServer(c.HysteriaConfig, c.SyncTrafficEndPoint)
+		},
+		needReload: func(s common.TunnelServer, c *config.Config) (bool, error) {
+			return s.(*hysteria.HysteriaServer).NeedReload(c.HysteriaConfig)
+		},
+	},
+	{
+		name:        "anytls",
+		shouldStart: func(c *config.Config) bool { return c.NeedStartAnytlsServer() },
+		newServer: func(c *config.Config) common.TunnelServer {
+			return anytls.NewAnytlsServer(c.AnytlsConfig, c.SyncTrafficEndPoint)
+		},
+		needReload: func(s common.TunnelServer, c *config.Config) (bool, error) {
+			return s.(*anytls.AnytlsServer).NeedReload(c.AnytlsConfig)
+		},
+	},
+}
+
 func startSTAgent(ctx context.Context, cfg *config.Config) {
 	log := zap.S().Named("cli")
-	var (
-		xrayS     *xray.XrayServer
-		hysteriaS *hysteria.HysteriaServer
-		anytlsS   *anytls.AnytlsServer
-	)
-	if cfg.NeedStartXrayServer() {
-		xrayS = xray.NewXrayServer(cfg)
-		if err := xrayS.Setup(); err != nil {
-			log.Fatalf("Setup XrayServer meet err=%v", err)
-		}
-		if err := xrayS.Start(ctx); err != nil {
-			log.Fatalf("Start XrayServer meet err=%v", err)
-		}
-	}
-	if cfg.NeedStartHysteriaServer() {
-		hysteriaS = hysteria.NewHysteriaServer(cfg.HysteriaConfig, cfg.SyncTrafficEndPoint)
-		if err := hysteriaS.Setup(); err != nil {
-			log.Fatalf("Setup HysteriaServer meet err=%v", err)
-		}
-		if err := hysteriaS.Start(ctx); err != nil {
-			log.Fatalf("Start HysteriaServer meet err=%v", err)
-		}
-	}
-	if cfg.NeedStartAnytlsServer() {
-		anytlsS = anytls.NewAnytlsServer(cfg.AnytlsConfig, cfg.SyncTrafficEndPoint)
-		if err := anytlsS.Setup(); err != nil {
-			log.Fatalf("Setup AnytlsServer meet err=%v", err)
-		}
-		if err := anytlsS.Start(ctx); err != nil {
-			log.Fatalf("Start AnytlsServer meet err=%v", err)
+	instances := make([]common.TunnelServer, len(tunnels))
+
+	for i, def := range tunnels {
+		if def.shouldStart(cfg) {
+			s := def.newServer(cfg)
+			if err := s.Setup(); err != nil {
+				log.Fatalf("Setup %s meet err=%v", def.name, err)
+			}
+			if err := s.Start(ctx); err != nil {
+				log.Fatalf("Start %s meet err=%v", def.name, err)
+			}
+			instances[i] = s
 		}
 	}
 
@@ -58,87 +79,32 @@ func startSTAgent(ctx context.Context, cfg *config.Config) {
 				case <-ticker.C:
 					newCfg := config.NewConfig(cfg.PATH)
 					if err := newCfg.LoadConfig(false); err != nil {
-						// TODO refine
 						l.Error("Reload Config meet error will retry in next loop", zap.Error(err))
 						continue
 					}
-					if cfg.NeedStartXrayServer() {
-						if xrayS != nil {
-							if needReload, err := xrayS.NeedReload(newCfg); err != nil {
-								l.Error("check need reload meet error", zap.Error(err))
-							} else {
-								if needReload {
+					for i, def := range tunnels {
+						if def.shouldStart(cfg) {
+							if instances[i] != nil {
+								if needReload, err := def.needReload(instances[i], newCfg); err != nil {
+									l.Error("check need reload meet error", zap.String("server", def.name), zap.Error(err))
+								} else if needReload {
 									cfg = newCfg
-									if err := xrayS.Reload(); err != nil {
-										l.Error("Reload Xray Server meet error", zap.Error(err))
+									if err := instances[i].Reload(); err != nil {
+										l.Error("Reload meet error", zap.String("server", def.name), zap.Error(err))
 									}
-									l.Warn("Reload Xray Server success exit watcher ...")
+									l.Warn("Reload success exit watcher", zap.String("server", def.name))
 									return
 								}
-							}
-						} else {
-							xrayS = xray.NewXrayServer(cfg)
-							if err := xrayS.Setup(); err != nil {
-								l.Error("Setup XrayServer meet error", zap.Error(err))
-								xrayS = nil
 							} else {
-								if err := xrayS.Start(ctx); err != nil {
-									l.Error("Start XrayServer meet error", zap.Error(err))
-									xrayS = nil
-								}
-							}
-						}
-					}
-					if cfg.NeedStartHysteriaServer() {
-						if hysteriaS != nil {
-							if needReload, err := hysteriaS.NeedReload(cfg.HysteriaConfig); err != nil {
-								l.Error("check need reload meet error", zap.Error(err))
-							} else {
-								if needReload {
-									cfg = newCfg
-									if err := hysteriaS.Reload(); err != nil {
-										l.Error("Reload Hysteria Server meet error", zap.Error(err))
+								s := def.newServer(cfg)
+								if err := s.Setup(); err != nil {
+									l.Error("Setup meet error", zap.String("server", def.name), zap.Error(err))
+								} else {
+									if err := s.Start(ctx); err != nil {
+										l.Error("Start meet error", zap.String("server", def.name), zap.Error(err))
+									} else {
+										instances[i] = s
 									}
-									l.Warn("Reload Hysteria Server success exit watcher ...")
-									return
-								}
-							}
-						} else {
-							hysteriaS = hysteria.NewHysteriaServer(cfg.HysteriaConfig, cfg.SyncTrafficEndPoint)
-							if err := hysteriaS.Setup(); err != nil {
-								l.Error("Setup HysteriaServer meet error", zap.Error(err))
-								hysteriaS = nil
-							} else {
-								if err := hysteriaS.Start(ctx); err != nil {
-									l.Error("Start HysteriaServer meet error", zap.Error(err))
-									hysteriaS = nil
-								}
-							}
-						}
-					}
-					if cfg.NeedStartAnytlsServer() {
-						if anytlsS != nil {
-							if needReload, err := anytlsS.NeedReload(newCfg.AnytlsConfig); err != nil {
-								l.Error("check anytls need reload meet error", zap.Error(err))
-							} else {
-								if needReload {
-									cfg = newCfg
-									if err := anytlsS.Reload(); err != nil {
-										l.Error("Reload Anytls Server meet error", zap.Error(err))
-									}
-									l.Warn("Reload Anytls Server success exit watcher ...")
-									return
-								}
-							}
-						} else {
-							anytlsS = anytls.NewAnytlsServer(cfg.AnytlsConfig, cfg.SyncTrafficEndPoint)
-							if err := anytlsS.Setup(); err != nil {
-								l.Error("Setup AnytlsServer meet error", zap.Error(err))
-								anytlsS = nil
-							} else {
-								if err := anytlsS.Start(ctx); err != nil {
-									l.Error("Start AnytlsServer meet error", zap.Error(err))
-									anytlsS = nil
 								}
 							}
 						}
