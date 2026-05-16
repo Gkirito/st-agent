@@ -7,9 +7,12 @@ import (
 	"net"
 
 	stTls "github.com/gkirito/st-agent/tool/tls"
+	"github.com/gkirito/st-agent/tunnel/common"
 
 	"go.uber.org/zap"
 )
+
+var _ common.TunnelServer = (*AnytlsServer)(nil)
 
 type AnytlsServer struct {
 	l   *zap.Logger
@@ -29,6 +32,8 @@ func NewAnytlsServer(cfg *ServerConfig, syncTrafficEndPoint string) *AnytlsServe
 		syncTrafficEndPoint: syncTrafficEndPoint,
 	}
 }
+
+func (as *AnytlsServer) Name() string { return "anytls" }
 
 func (as *AnytlsServer) Setup() error {
 	as.l.Debug("anytls Setup")

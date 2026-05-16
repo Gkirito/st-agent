@@ -8,9 +8,12 @@ import (
 
 	"github.com/apernet/hysteria/core/v2/server"
 	"github.com/gkirito/st-agent/tool/tls"
+	"github.com/gkirito/st-agent/tunnel/common"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+var _ common.TunnelServer = (*HysteriaServer)(nil)
 
 type HysteriaServer struct {
 	l                   *zap.Logger
@@ -28,6 +31,8 @@ type HysteriaServer struct {
 func NewHysteriaServer(cfg *ServerConfig, syncTrafficEndPoint string) *HysteriaServer {
 	return &HysteriaServer{l: zap.L().Named("hysteria"), cfg: cfg, syncTrafficEndPoint: syncTrafficEndPoint}
 }
+
+func (hs *HysteriaServer) Name() string { return "hysteria" }
 
 func (hs *HysteriaServer) Setup() error {
 	hs.l.Debug("hysteria Setup")

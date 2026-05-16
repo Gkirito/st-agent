@@ -49,7 +49,7 @@ func handleTcpConnection(ctx context.Context, c net.Conn, tlsConfig *tls.Config,
 	var authHash [32]byte
 	copy(authHash[:], by)
 
-	user, ok := up.AuthenticateHash(authHash)
+	user, ok := AuthenticateHash(up, authHash)
 	if !ok || !user.Enable {
 		zap.L().Debug("anytls authentication failed or user disabled")
 		return

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gkirito/st-agent/config"
 	"github.com/gkirito/st-agent/tool/tls"
+	"github.com/gkirito/st-agent/tunnel/common"
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/infra/conf"
 	_ "github.com/xtls/xray-core/main/distro/all" // register all features
@@ -46,9 +47,13 @@ type XrayServer struct {
 	mainCtx context.Context
 }
 
+var _ common.TunnelServer = (*XrayServer)(nil)
+
 func NewXrayServer(cfg *config.Config) *XrayServer {
 	return &XrayServer{l: zap.L().Named("xray"), cfg: cfg}
 }
+
+func (xs *XrayServer) Name() string { return "xray" }
 
 func (xs *XrayServer) Setup() error {
 	coreCfg, err := buildXrayInstanceCfg(xs.cfg.XRayConfig)
