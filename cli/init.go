@@ -94,21 +94,26 @@ func mergeACMECLI(cfg *config.Config) {
 		cfg.ACME.Fallback = true
 	}
 
-	// DNS provider
+	// DNS provider name
 	if ACMEFlagDNSName != "" {
 		if cfg.ACME.DNS == nil {
 			cfg.ACME.DNS = &stTls.CertMagicDNSConfig{}
 		}
 		cfg.ACME.DNS.Name = ACMEFlagDNSName
+	}
 
-		// Parse key=value pairs into the config map
-		if dnsConfig := ACMEFlagDNSConfig.Value(); len(dnsConfig) > 0 {
+	// DNS provider config — merges into existing config from file
+	if dnsConfig := ACMEFlagDNSConfig.Value(); len(dnsConfig) > 0 {
+		if cfg.ACME.DNS == nil {
+			cfg.ACME.DNS = &stTls.CertMagicDNSConfig{}
+		}
+		if cfg.ACME.DNS.Config == nil {
 			cfg.ACME.DNS.Config = make(map[string]string, len(dnsConfig))
-			for _, kv := range dnsConfig {
-				parts := strings.SplitN(kv, "=", 2)
-				if len(parts) == 2 {
-					cfg.ACME.DNS.Config[parts[0]] = parts[1]
-				}
+		}
+		for _, kv := range dnsConfig {
+			parts := strings.SplitN(kv, "=", 2)
+			if len(parts) == 2 {
+				cfg.ACME.DNS.Config[parts[0]] = parts[1]
 			}
 		}
 	}
