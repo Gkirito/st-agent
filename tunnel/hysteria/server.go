@@ -48,7 +48,7 @@ func (hs *HysteriaServer) Setup() error {
 	hs.cfg.Auth.HTTP.URL = "http://127.0.0.1:8123/auth"
 	hs.cfg.TLS = &serverConfigTLS{
 		SNIGuard: "disable",
-		SelfTls:  &tls.DefaultTLSConfig.Certificates[0],
+		GetCert:  tls.GetCertificate,
 	}
 
 	coreCfg, err := hs.cfg.Config()

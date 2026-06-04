@@ -55,9 +55,7 @@ func (as *AnytlsServer) Start(ctx context.Context) error {
 	as.l.Info("Start Anytls Server", zap.String("listen", as.cfg.Listen))
 
 	tlsConfig := &tls.Config{
-		GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return &stTls.DefaultTLSConfig.Certificates[0], nil
-		},
+		GetCertificate: stTls.GetCertificate,
 	}
 
 	listener, err := net.Listen("tcp", as.cfg.Listen)

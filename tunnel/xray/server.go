@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/gkirito/st-agent/config"
 	"github.com/gkirito/st-agent/tool/tls"
@@ -21,10 +22,21 @@ func buildXrayInstanceCfg(cfg *conf.Config) (*core.Config, error) {
 			if err := tls.InitTlsCfg(); err != nil {
 				return nil, err
 			}
+			// Note: Xray receives a static PEM snapshot at config-build time.
+			// After certmagic renewals, xray must be reloaded (via config reload)
+			// to pick up the updated certificate. For always-current certificates,
+			// prefer anytls or hysteria tunnels which use the dynamic GetCertificate
+			// callback.
+			getCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			certPEM, keyPEM, err := tls.GetCertificatePEM(getCtx)
+			cancel()
+			if err != nil {
+				return nil, err
+			}
 			tlsConfigs := []*conf.TLSCertConfig{
 				{
-					CertStr: []string{string(tls.DefaultTLSConfigCertBytes)},
-					KeyStr:  []string{string(tls.DefaultTLSConfigKeyBytes)},
+					CertStr: []string{string(certPEM)},
+					KeyStr:  []string{string(keyPEM)},
 				},
 			}
 			inbound.StreamSetting.TLSSettings.Certs = tlsConfigs
