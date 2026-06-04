@@ -6,12 +6,18 @@ require (
 	anytls v0.0.0-00010101000000-000000000000
 	github.com/apernet/hysteria/core/v2 v2.6.5
 	github.com/apernet/hysteria/extras/v2 v2.6.5
+	github.com/caddyserver/certmagic v0.25.3
 	github.com/google/uuid v1.6.0
+	github.com/libdns/cloudflare v0.2.2
+	github.com/libdns/duckdns v0.3.0
+	github.com/libdns/gandi v1.1.0
+	github.com/libdns/godaddy v1.1.0
 	github.com/mdp/qrterminal/v3 v3.1.1
+	github.com/mholt/acmez/v3 v3.1.6
 	github.com/sagernet/sing v0.5.1
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/xtls/xray-core v1.251015.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.76.0
 )
 
@@ -20,6 +26,7 @@ replace anytls => github.com/anytls/anytls-go v0.0.0-20260112092128-2012ef897684
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/apernet/quic-go v0.54.1-0.20251024023933-5e0818a71079 // indirect
+	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/chen3feng/stl4go v0.1.1 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
@@ -34,7 +41,8 @@ require (
 	github.com/juju/ratelimit v1.0.2 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/miekg/dns v1.1.68 // indirect
+	github.com/libdns/libdns v1.1.1 // indirect
+	github.com/miekg/dns v1.1.72 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pires/go-proxyproto v0.8.1 // indirect
@@ -57,18 +65,20 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/xtls/reality v0.0.0-20251014195629-e4eec4520535 // indirect
+	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.uber.org/mock v0.5.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap/exp v0.3.0 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
-	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/exp v0.0.0-20240531132922-fd00a4e0eefc // indirect
-	golang.org/x/mod v0.28.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
-	golang.org/x/tools v0.37.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
