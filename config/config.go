@@ -9,6 +9,7 @@ import (
 	"time"
 
 	httputil "github.com/gkirito/st-agent/tool/http_util"
+	stTls "github.com/gkirito/st-agent/tool/tls"
 	"github.com/gkirito/st-agent/tunnel/anytls"
 	"github.com/gkirito/st-agent/tunnel/hysteria"
 
@@ -30,6 +31,7 @@ type Config struct {
 	HysteriaConfig      *hysteria.ServerConfig `json:"hysteria_config,omitempty"`
 	AnytlsConfig        *anytls.ServerConfig   `json:"anytls_config,omitempty"`
 	SyncTrafficEndPoint string                 `json:"sync_traffic_endpoint,omitempty"`
+	ACME                *stTls.CertMagicConfig `json:"acme,omitempty"`
 
 	lastLoadTime time.Time
 	l            *zap.SugaredLogger
