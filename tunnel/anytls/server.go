@@ -118,6 +118,20 @@ func (as *AnytlsServer) NeedReload(newCfg *ServerConfig) (bool, error) {
 			zap.String("new", newCfg.Listen))
 		return true, nil
 	}
+	if newCfg.PaddingScheme != as.cfg.PaddingScheme {
+		as.l.Info("padding_scheme changed, updating atomically")
+		if newCfg.PaddingScheme != "" {
+			if padding.UpdatePaddingScheme([]byte(newCfg.PaddingScheme)) {
+				as.cfg.PaddingScheme = newCfg.PaddingScheme
+				as.l.Debug("padding_scheme updated successfully")
+			} else {
+				as.l.Warn("invalid padding_scheme in new config, keeping current")
+			}
+		} else {
+			as.l.Warn("padding_scheme cleared, restart required to reset to default")
+			as.cfg.PaddingScheme = newCfg.PaddingScheme
+		}
+	}
 	return false, nil
 }
 
