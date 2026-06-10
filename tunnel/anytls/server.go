@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 
+	"anytls/proxy/padding"
 	stTls "github.com/gkirito/st-agent/tool/tls"
 	"github.com/gkirito/st-agent/tunnel/common"
 
@@ -42,6 +43,14 @@ func (as *AnytlsServer) Setup() error {
 	}
 	if as.syncTrafficEndPoint == "" {
 		return errors.New("syncTrafficEndPoint is empty")
+	}
+
+	if as.cfg.PaddingScheme != "" {
+		if !padding.UpdatePaddingScheme([]byte(as.cfg.PaddingScheme)) {
+			as.l.Warn("invalid padding_scheme, using default")
+		} else {
+			as.l.Debug("custom padding scheme applied")
+		}
 	}
 
 	if err := stTls.InitTlsCfg(); err != nil {
