@@ -1,195 +1,88 @@
 package hysteria
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
-	"sync"
+	"strings"
 	"time"
 
-	"github.com/gkirito/st-agent/tool/bytes"
+	"github.com/gkirito/st-agent/tunnel/common"
 	"go.uber.org/zap"
 )
 
-type User struct {
-	running bool
+type User = common.User
+type UserTraffic = common.UserTraffic
+type SyncTrafficReq = common.SyncTrafficReq
+type SyncUserConfigsResp = common.SyncUserConfigsResp
+type UserPool = common.UserPool
 
-	ID       int    `json:"user_id"`
-	Method   string `json:"method"`
-	Password string `json:"password"`
-
-	Level           int   `json:"level"`
-	Enable          bool  `json:"enable"`
-	UploadTraffic   int64 `json:"upload_traffic"`
-	DownloadTraffic int64 `json:"download_traffic"`
-
-	Protocol string `json:"protocol"`
-}
-
-type UserTraffic struct {
-	ID              int      `json:"user_id"`
-	UploadTraffic   int64    `json:"upload_traffic"`
-	DownloadTraffic int64    `json:"download_traffic"`
-	IPList          []string `json:"ip_list"`
-	TcpCount        int64    `json:"tcp_conn_num"`
-}
-
-type SyncTrafficReq struct {
-	Data              []*UserTraffic `json:"data"`
-	UploadBandwidth   int64          `json:"upload_bandwidth"`
-	DownloadBandwidth int64          `json:"download_bandwidth"`
-}
-
-func (s *SyncTrafficReq) GetTotalTraffic() int64 {
-	var total int64
-	for _, u := range s.Data {
-		total += u.UploadTraffic + u.DownloadTraffic
-	}
-	return total
-}
-
-type SyncUserConfigsResp struct {
-	Users []*User `json:"users"`
-}
-
-// NOTE we use user id as email
-func (u *User) GetEmail() string {
-	return fmt.Sprintf("%d", u.ID)
-}
-
-func (u *User) ResetTraffic() {
-	u.DownloadTraffic = 0
-	u.UploadTraffic = 0
-}
-
-func (u *User) GenTraffic() *UserTraffic {
-	return &UserTraffic{
-		ID:              u.ID,
-		UploadTraffic:   u.UploadTraffic,
-		DownloadTraffic: u.DownloadTraffic,
-		IPList:          []string{},
-		TcpCount:        0,
-	}
-}
-
-func (u *User) UpdateFromServer(serverSideUser *User) {
-	u.Method = serverSideUser.Method
-	u.Enable = serverSideUser.Enable
-	u.Password = serverSideUser.Password
-}
-
-func (u *User) Equal(new *User) bool {
-	return u.Method == new.Method && u.Enable == new.Enable && u.Password == new.Password
-}
-
-type UserPool struct {
-	l *zap.Logger
-	sync.RWMutex
-	// map key : ID
-	users    map[int]*User
-	userpass map[string]int
-
-	httpClient *http.Client
-
-	br *bandwidthRecorder
-
-	cancel           context.CancelFunc
-	hysteriaEndpoint string
-	hyEpSecret       string
-	remoteConfigURL  string
+type traffic struct {
+	Tx int64 `json:"tx"`
+	Rx int64 `json:"rx"`
 }
 
 func NewUserPool(hysteriaEndpoint, remoteConfigURL, metricURL, hyEpSecret string) *UserPool {
-	up := &UserPool{
-		l:                zap.L().Named("user_pool"),
-		users:            make(map[int]*User),
-		userpass:         make(map[string]int),
-		hyEpSecret:       hyEpSecret,
-		hysteriaEndpoint: hysteriaEndpoint,
-		remoteConfigURL:  remoteConfigURL,
-	}
+	var br *bandwidthRecorder
 	if metricURL != "" {
-		up.br = NewBandwidthRecorder(metricURL)
+		br = NewBandwidthRecorder(metricURL)
 	}
-	return up
+	return common.NewUserPool(common.PoolConfig{
+		RemoteConfigURL: remoteConfigURL,
+		PasswordKey:     func(password string) any { return password },
+		FetchTraffic: func(ctx context.Context, getUser func(int) (*common.User, bool)) error {
+			return fetchHysteriaTraffic(ctx, getUser, hysteriaEndpoint, hyEpSecret)
+		},
+		OnUserUpdate: func(ctx context.Context, oldUser, newUser *common.User) {
+			if oldUser.IsRunning() {
+				if err := kickUser(ctx, hysteriaEndpoint, hyEpSecret, oldUser.ID); err != nil {
+					zap.L().Named("user_pool").Warn("kick updated hysteria user failed",
+						zap.Int("user_id", oldUser.ID), zap.Error(err))
+				}
+				oldUser.SetRunning(false)
+			}
+		},
+		OnUserRemove: func(ctx context.Context, user *common.User) error {
+			return kickUser(ctx, hysteriaEndpoint, hyEpSecret, user.ID)
+		},
+		RecordBandwidth: func(ctx context.Context) (int64, int64, error) {
+			if br == nil {
+				return 0, 0, nil
+			}
+			if _, _, err := br.RecordOnce(ctx); err != nil {
+				return 0, 0, err
+			}
+			return int64(br.GetUploadBandwidth()), int64(br.GetDownloadBandwidth()), nil
+		},
+	})
 }
 
-func (up *UserPool) CreateUser(userId, level int, password, method, protocol string, enable bool) *User {
-	up.Lock()
-	defer up.Unlock()
-	u := &User{
-		running:  false,
-		ID:       userId,
-		Password: password,
-		Level:    level,
-		Enable:   enable,
-		Method:   method,
-		Protocol: protocol,
-	}
-	up.users[u.ID] = u
-	up.userpass[u.Password] = u.ID
-	return u
+func GetUserByPass(up *UserPool, password string) (*User, bool) {
+	return up.GetUserByKey(password)
 }
 
-func (up *UserPool) GetUser(id int) (*User, bool) {
-	up.RLock()
-	defer up.RUnlock()
-	user, ok := up.users[id]
-	return user, ok
-}
-
-func (up *UserPool) RemoveUser(id int) {
-	up.Lock()
-	defer up.Unlock()
-	user, ok := up.GetUser(id)
-	if !ok {
-		return
-	}
-	delete(up.users, id)
-	delete(up.userpass, user.Password)
-}
-
-func (up *UserPool) GetUserByPass(password string) (*User, bool) {
-	up.RLock()
-	defer up.RUnlock()
-	uid, ok := up.userpass[password]
-	if !ok {
-		return nil, false
-	}
-	user, ok := up.users[uid]
-	return user, ok
-}
-
-func (up *UserPool) GetAllUsers() []*User {
-	up.RLock()
-	defer up.RUnlock()
-
-	users := make([]*User, 0, len(up.users))
-	for _, user := range up.users {
-		users = append(users, user)
-	}
-	return users
-}
-
-func (up *UserPool) syncTrafficToServer(ctx context.Context) error {
-	resp, err := getTraffic(ctx, up.httpClient, up.hysteriaEndpoint, up.hyEpSecret)
+func fetchHysteriaTraffic(ctx context.Context, getUser func(int) (*common.User, bool), host, secret string) error {
+	resp, err := getTraffic(ctx, host, secret)
 	if err != nil {
 		return err
 	}
 
+	l := zap.L().Named("user_pool")
 	for userIDStr, traffic := range resp {
 		userID, err := strconv.Atoi(userIDStr)
 		if err != nil {
 			return err
 		}
-		user, found := up.GetUser(userID)
+		user, found := getUser(userID)
 		if !found {
-			up.l.Sugar().Warnf(
+			l.Sugar().Warnf(
 				"user in xray not found in user pool this user maybe out of traffic, user id: %d, leak traffic: %d",
 				userID, traffic.Rx+traffic.Tx)
-			if err := kick(ctx, up.httpClient, up.hysteriaEndpoint, up.hyEpSecret, userID); err != nil {
-				up.l.Warn("tring remove leak user failed, user id: %d err: %s",
+			if err := kickUser(ctx, host, secret, userID); err != nil {
+				l.Warn("tring remove leak user failed, user id: %d err: %s",
 					zap.Int("user_id", userID), zap.Error(err))
 			}
 			continue
@@ -197,118 +90,85 @@ func (up *UserPool) syncTrafficToServer(ctx context.Context) error {
 		user.UploadTraffic = traffic.Tx
 		user.DownloadTraffic = traffic.Rx
 	}
-
-	tfs := make([]*UserTraffic, 0, len(up.users))
-	for _, user := range up.GetAllUsers() {
-		tf := user.DownloadTraffic + user.UploadTraffic
-		if tf > 0 {
-			up.l.Sugar().Infof("User: %v Now Used Total Traffic: %v", user.ID, tf)
-			tfs = append(tfs, user.GenTraffic())
-			user.ResetTraffic()
-		}
-	}
-	req := &SyncTrafficReq{Data: tfs}
-	if up.br != nil {
-		// record bandwidth
-		uploadIncr, downloadIncr, err := up.br.RecordOnce(ctx)
-		if err != nil {
-			return err
-		}
-
-		ub := up.br.GetUploadBandwidth()
-		req.UploadBandwidth = int64(ub)
-		db := up.br.GetDownloadBandwidth()
-		req.DownloadBandwidth = int64(db)
-		up.l.Sugar().Debug(
-			"Upload Bandwidth :", bytes.PrettyByteSize(ub),
-			"Download Bandwidth :", bytes.PrettyByteSize(db),
-			"Total Bandwidth :", bytes.PrettyByteSize(ub+db),
-			"Total Increment By BR", bytes.PrettyByteSize(uploadIncr+downloadIncr),
-			"Total Increment By Xray :", bytes.PrettyByteSize(float64(req.GetTotalTraffic())),
-		)
-	}
-	if err := postJson(up.httpClient, up.remoteConfigURL, req); err != nil {
-		return err
-	}
-	up.l.Sugar().Infof("Call syncTrafficToServer ONLINE USER COUNT: %d", len(tfs))
 	return nil
 }
 
-func (up *UserPool) syncUserConfigsFromServer(ctx context.Context) error {
-	resp := SyncUserConfigsResp{}
-	if err := getJson(up.httpClient, up.remoteConfigURL, &resp); err != nil {
+type httpError struct {
+	statusCode int
+	message    json.RawMessage
+}
+
+func (he *httpError) Error() string {
+	if he == nil {
+		return ""
+	}
+	msg := strings.TrimSpace(string(he.message))
+	if msg == "" {
+		return fmt.Sprintf("http error: status %d", he.statusCode)
+	}
+	return fmt.Sprintf("http error: status %d, message: %s", he.statusCode, msg)
+}
+
+func getTraffic(ctx context.Context, host, secret string) (map[string]*traffic, error) {
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+host+"/traffic?clear=1", nil)
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Set("Authorization", " "+secret)
+	r.Header.Set("Content-Type", "application/json")
+	resp, err := hysteriaHTTPClient().Do(r)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	decode := json.NewDecoder(resp.Body)
+	if resp.StatusCode >= 300 {
+		var errBody json.RawMessage
+		_ = decode.Decode(&errBody)
+		return nil, &httpError{
+			statusCode: resp.StatusCode,
+			message:    errBody,
+		}
+	}
+	result := make(map[string]*traffic)
+	if err := decode.Decode(&result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func kickUser(ctx context.Context, host, secret string, userIDs ...int) error {
+	idStr := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		idStr = append(idStr, strconv.Itoa(id))
+	}
+	body := new(bytes.Buffer)
+	if err := json.NewEncoder(body).Encode(idStr); err != nil {
 		return err
 	}
-	userM := make(map[int]struct{})
-	for _, newUser := range resp.Users {
-		oldUser, found := up.GetUser(newUser.ID)
-		if !found {
-			_ = up.CreateUser(
-				newUser.ID, newUser.Level, newUser.Password, newUser.Method, newUser.Protocol, newUser.Enable)
-		} else {
-			// update user configs
-			if !oldUser.Equal(newUser) {
-				oldUser.UpdateFromServer(newUser)
-				if oldUser.running {
-					if err := kick(ctx, up.httpClient, up.hysteriaEndpoint, up.hyEpSecret, oldUser.ID); err != nil {
-						return err
-					}
-					oldUser.running = false
-				}
-			}
-		}
-		userM[newUser.ID] = struct{}{}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+host+"/kick", body)
+	if err != nil {
+		return err
 	}
-	// remove user not in server
-	for _, user := range up.GetAllUsers() {
-		if _, ok := userM[user.ID]; !ok {
-			if err := kick(ctx, up.httpClient, up.hysteriaEndpoint, up.hyEpSecret, user.ID); err != nil {
-				return err
-			}
-			up.RemoveUser(user.ID)
+	req.Header.Set("Authorization", " "+secret)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := hysteriaHTTPClient().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	decoder := json.NewDecoder(resp.Body)
+	if resp.StatusCode >= 300 {
+		var errBody json.RawMessage
+		_ = decoder.Decode(&errBody)
+		return &httpError{
+			statusCode: resp.StatusCode,
+			message:    errBody,
 		}
 	}
 	return nil
 }
 
-func (up *UserPool) Start(ctx context.Context) error {
-	up.httpClient = &http.Client{Timeout: time.Second * 10}
-
-	syncOnce := func() error {
-		if err := up.syncUserConfigsFromServer(ctx); err != nil {
-			up.l.Sugar().Errorf("Sync User Configs From Server Error: %v", err)
-			return err
-		}
-		if err := up.syncTrafficToServer(ctx); err != nil {
-			up.l.Sugar().Errorf("Sync Traffic From Server Error: %v", err)
-			return err
-		}
-		return nil
-	}
-	if err := syncOnce(); err != nil {
-		return err
-	}
-
-	ctx2, cancel := context.WithCancel(ctx)
-	up.cancel = cancel
-	go func() {
-		ticker := time.NewTicker(time.Second * SyncTime)
-		for {
-			select {
-			case <-ctx2.Done():
-				return
-			case <-ticker.C:
-				if err := syncOnce(); err != nil {
-					up.l.Error("Sync User Configs From Server Error: %v", zap.Error(err))
-				}
-			}
-		}
-	}()
-	return nil
-}
-
-func (up *UserPool) Stop() {
-	if up.cancel != nil {
-		up.cancel()
-	}
+func hysteriaHTTPClient() *http.Client {
+	return &http.Client{Timeout: time.Second * 10}
 }

@@ -32,13 +32,13 @@ func AddInboundUser(ctx context.Context, c proxy.HandlerServiceClient, tag strin
 	_, err := c.AlterInbound(ctx, &proxy.AlterInboundRequest{
 		Tag: tag,
 		Operation: serial.ToTypedMessage(
-			&proxy.AddUserOperation{User: user.ToXrayUser()}),
+			&proxy.AddUserOperation{User: ToXrayUser(user)}),
 	})
 	if err != nil {
 		zap.S().Named("xray").Errorf("Failed to Add User: %s To Server Tag: %s", user.GetEmail(), tag)
 		return err
 	}
-	user.running = true
+	user.SetRunning(true)
 	zap.S().Named("xray").Infof("Add User: %s To Server Tag: %s", user.GetEmail(), tag)
 	return nil
 }
@@ -62,7 +62,7 @@ func RemoveInboundUser(ctx context.Context, c proxy.HandlerServiceClient, tag st
 		zap.S().Named("xray").Error("Failed to Remove User: %s To Server", user.GetEmail())
 		return err
 	}
-	user.running = false
+	user.SetRunning(false)
 	zap.S().Named("xray").Infof("[xray] Remove User: %v From Server", user.ID)
 	return nil
 }

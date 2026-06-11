@@ -1,4 +1,4 @@
-package xray
+package common
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func getJson(c *http.Client, url string, target interface{}) error {
+func GetJSON(c *http.Client, url string, target any) error {
 	r, err := c.Get(url)
 	if err != nil {
 		return err
@@ -16,12 +16,12 @@ func getJson(c *http.Client, url string, target interface{}) error {
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-func postJson(c *http.Client, url string, dataStruct interface{}) error {
+func PostJSON(c *http.Client, url string, dataStruct any) error {
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(dataStruct); err != nil {
 		return err
 	}
-	r, err := http.Post(url, "application/json", buf)
+	r, err := c.Post(url, "application/json", buf)
 	if err != nil {
 		return err
 	}

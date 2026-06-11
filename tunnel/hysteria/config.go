@@ -93,6 +93,7 @@ type serverConfigTLS struct {
 	SNIGuard string           `json:"sniGuard"` // "disable", "dns-san", "strict"
 	ClientCA string           `json:"clientCA"`
 	SelfTls  *tls.Certificate `json:"-"`
+	GetCert  func(*tls.ClientHelloInfo) (*tls.Certificate, error) `json:"-"`
 }
 
 type serverConfigACME struct {
@@ -339,7 +340,9 @@ func (c *ServerConfig) fillTLSConfig(hyConfig *server.Config) error {
 			// Use GetCertificate instead of Certificates so that
 			// users can update the cert without restarting the server.
 			hyConfig.TLSConfig.GetCertificate = certLoader.GetCertificate
-		} else if c.TLS.SelfTls != nil {
+		} else if c.TLS.GetCert != nil {
+		hyConfig.TLSConfig.GetCertificate = c.TLS.GetCert
+	} else if c.TLS.SelfTls != nil {
 			hyConfig.TLSConfig.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				return c.TLS.SelfTls, nil
 			}
