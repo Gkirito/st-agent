@@ -28,7 +28,7 @@ require (
 	github.com/apernet/quic-go v0.54.1-0.20251024023933-5e0818a71079 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/chen3feng/stl4go v0.1.1 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/database64128/netx-go v0.0.0-20240905055117-62795b8b054a // indirect
 	github.com/database64128/tfo-go/v2 v2.2.2 // indirect
