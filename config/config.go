@@ -79,7 +79,9 @@ func (c *Config) readFromHttp() error {
 	if newC, err := httputil.JsonReq[Config](context.TODO(), http.MethodGet, c.PATH, nil, nil, nil); err != nil {
 		return err
 	} else {
+		path := c.PATH
 		*c = newC
+		c.PATH = path
 	}
 	return nil
 }
