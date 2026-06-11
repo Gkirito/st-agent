@@ -128,11 +128,12 @@ func mergeACMECLI(cfg *config.Config) {
 	}
 }
 
-func initLogger(cfg *config.Config) error {
+func initLogger(cfg *config.Config) (zap.AtomicLevel, error) {
 	level := zapcore.InfoLevel
 	if err := level.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
-		return err
+		return zap.NewAtomicLevelAt(zapcore.InfoLevel), err
 	}
+	atomicLevel := zap.NewAtomicLevelAt(level)
 	writers := []zapcore.WriteSyncer{zapcore.AddSync(os.Stderr)}
 	encoder := zapcore.EncoderConfig{
 		TimeKey:     "ts",
@@ -146,9 +147,9 @@ func initLogger(cfg *config.Config) error {
 	core := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(encoder),
 		zapcore.NewMultiWriteSyncer(writers...),
-		level,
+		atomicLevel,
 	)
 	l := zap.New(core)
 	zap.ReplaceGlobals(l)
-	return nil
+	return atomicLevel, nil
 }

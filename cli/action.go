@@ -14,7 +14,7 @@ func action(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = initLogger(cfg)
+	atomicLevel, err := initLogger(cfg)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func action(ctx *cli.Context) error {
 		}
 	}
 
-	startSTAgent(mainCtx, cfg)
+	startSTAgent(mainCtx, cfg, atomicLevel)
 
 	<-mainCtx.Done()
 
