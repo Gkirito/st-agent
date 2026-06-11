@@ -26,6 +26,11 @@ var (
 )
 
 func InitTlsCfg() error {
+	// If certmagic is active, skip self-signed generation — certificates
+	// are managed by certmagic and served via GetCertificate.
+	if CertMagicInstance != nil {
+		return nil
+	}
 	if DefaultTLSConfig != nil {
 		return nil
 	}
@@ -38,6 +43,17 @@ func InitTlsCfg() error {
 		InsecureSkipVerify: true,
 	}
 	return nil
+}
+
+// GetCertificate returns a TLS certificate for the given ClientHelloInfo.
+// When certmagic is active it delegates to magic.GetCertificate (which handles
+// automatic renewal transparently). Otherwise it returns the self-signed
+// certificate from DefaultTLSConfig.
+func GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	if CertMagicInstance != nil {
+		return CertMagicInstance.GetCertificate(hello)
+	}
+	return &DefaultTLSConfig.Certificates[0], nil
 }
 
 func genCertificate() (cert tls.Certificate, err error) {

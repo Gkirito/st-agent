@@ -8,9 +8,12 @@ import (
 
 	"github.com/apernet/hysteria/core/v2/server"
 	"github.com/gkirito/st-agent/tool/tls"
+	"github.com/gkirito/st-agent/tunnel/common"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+var _ common.TunnelServer = (*HysteriaServer)(nil)
 
 type HysteriaServer struct {
 	l                   *zap.Logger
@@ -29,6 +32,8 @@ func NewHysteriaServer(cfg *ServerConfig, syncTrafficEndPoint string) *HysteriaS
 	return &HysteriaServer{l: zap.L().Named("hysteria"), cfg: cfg, syncTrafficEndPoint: syncTrafficEndPoint}
 }
 
+func (hs *HysteriaServer) Name() string { return "hysteria" }
+
 func (hs *HysteriaServer) Setup() error {
 	hs.l.Debug("hysteria Setup")
 	hs.cfg.WithLogger(hs.l)
@@ -43,7 +48,7 @@ func (hs *HysteriaServer) Setup() error {
 	hs.cfg.Auth.HTTP.URL = "http://127.0.0.1:8123/auth"
 	hs.cfg.TLS = &serverConfigTLS{
 		SNIGuard: "disable",
-		SelfTls:  &tls.DefaultTLSConfig.Certificates[0],
+		GetCert:  tls.GetCertificate,
 	}
 
 	coreCfg, err := hs.cfg.Config()
